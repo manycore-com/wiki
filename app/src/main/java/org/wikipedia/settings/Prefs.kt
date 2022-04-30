@@ -1,5 +1,6 @@
 package org.wikipedia.settings
 
+import io.manycore.annotations.Read
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.logging.HttpLoggingInterceptor
@@ -531,7 +532,9 @@ object Prefs {
             ?: emptySet()
         set(types) = PrefsIoUtil.setString(R.string.preference_key_excluded_type_codes_notification, JsonUtil.encodeToString(types))
 
+    @Read("EventPlaformClient", "setUpStreamConfigs")
     var streamConfigs
+        //NT: This is empty or filled from previous launch at App.onCreate. I checked manually
         get() = JsonUtil.decodeFromString<Map<String, StreamConfig>>(PrefsIoUtil.getString(R.string.preference_key_event_platform_stored_stream_configs, null))
             ?: emptyMap()
         set(value) = PrefsIoUtil.setString(R.string.preference_key_event_platform_stored_stream_configs, JsonUtil.encodeToString(value))

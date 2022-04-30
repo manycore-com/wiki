@@ -1,5 +1,7 @@
 package org.wikipedia.analytics.eventplatform
 
+import androidx.annotation.RequiresPermission
+import io.manycore.annotations.*
 import io.reactivex.rxjava3.schedulers.Schedulers
 import org.wikipedia.BuildConfig
 import org.wikipedia.WikipediaApp
@@ -16,6 +18,7 @@ object EventPlatformClient {
     /**
      * Stream configs to be fetched on startup and stored for the duration of the app lifecycle.
      */
+    //TODO check
     private val STREAM_CONFIGS = mutableMapOf<String, StreamConfig>()
 
     /*
@@ -28,11 +31,14 @@ object EventPlatformClient {
      */
     private var ENABLED = WikipediaApp.getInstance().isOnline
 
+    @Unused
     fun setStreamConfig(streamConfig: StreamConfig) {
         STREAM_CONFIGS[streamConfig.streamName] = streamConfig
     }
 
-    fun getStreamConfig(name: String): StreamConfig? {
+    @Read("EventPlatformClient","STREAM_CONFIG")
+    @Unused
+    private fun getStreamConfig(name: String): StreamConfig? {
         return STREAM_CONFIGS[name]
     }
 
@@ -58,7 +64,10 @@ object EventPlatformClient {
      * @param event event
      */
     @Synchronized
+    @Read("EventPlaformClient", "STREAM_CONFIGS")
     fun submit(event: Event) {
+
+        //NT queue the execution of method until Streamconfigs is ready
         if (!SamplingController.isInSample(event)) {
             return
         }
@@ -87,12 +96,15 @@ object EventPlatformClient {
         OutputBuffer.sendAllScheduled()
     }
 
+    @UniqueDependency("EventPlatformClient", "setUpStreamConfigs")
     private fun refreshStreamConfigs() {
+        //When there is a change it updates the StreamConfig I think!
         ServiceFactory.get(WikiSite(BuildConfig.META_WIKI_BASE_URI)).streamConfigs
                 .subscribeOn(Schedulers.io())
-                .subscribe({ updateStreamConfigs(it.streamConfigs) }) { L.e(it) }
+                .subscribe({ updateStreamConfigs(it.streamConfigs) }) { L.e(it)  } //logger: Write
     }
 
+    @Write("Prefs.streamConfig")
     @Synchronized
     private fun updateStreamConfigs(streamConfigs: Map<String, StreamConfig>) {
         STREAM_CONFIGS.clear()
@@ -100,9 +112,11 @@ object EventPlatformClient {
         Prefs.streamConfigs = STREAM_CONFIGS
     }
 
+    @UniqueDependency("WikipediaApp", "onCreate")
+    @Seed
     fun setUpStreamConfigs() {
-        STREAM_CONFIGS.clear()
-        STREAM_CONFIGS.putAll(Prefs.streamConfigs)
+        STREAM_CONFIGS.clear() //Reset
+        STREAM_CONFIGS.putAll(Prefs.streamConfigs) //Write
         refreshStreamConfigs()
     }
 
@@ -161,6 +175,7 @@ object EventPlatformClient {
          * Also batch the events ordered by their streams, as the QUEUE
          * can contain events of different streams
          */
+        @Read("EventPlatformClient", "STREAM_CONFIGS")
         private fun send() {
             if (!Prefs.isEventLoggingEnabled) {
                 return
@@ -170,6 +185,7 @@ object EventPlatformClient {
                 eventsByStream.getOrPut(it.stream) { mutableListOf() }.add(it)
             }
             eventsByStream.keys.forEach {
+                //NT if not ready add a wait/semaphore
                 sendEventsForStream(STREAM_CONFIGS[it]!!, eventsByStream[it]!!)
             }
         }
@@ -296,6 +312,7 @@ object EventPlatformClient {
          * @param event event
          * @return true if in sample or false otherwise
          */
+        @Read("EventPlatformClient", "STREAM_CONFIGS")
         fun isInSample(event: Event): Boolean {
             val stream = event.stream
             if (SAMPLING_CACHE.containsKey(stream)) {
