@@ -15,6 +15,7 @@ import java.net.HttpURLConnection
 import java.util.*
 
 object EventPlatformClient {
+
     /**
      * Stream configs to be fetched on startup and stored for the duration of the app lifecycle.
      */
@@ -29,6 +30,22 @@ object EventPlatformClient {
      * Taken out of iOS client, but flag can be set on the request object to wait until connected to send
      */
     private var ENABLED = WikipediaApp.getInstance().isOnline
+
+    @Volatile
+    private var isReady = false
+
+    fun setReady() {
+        isReady = true
+        processWaitQueue()
+    }
+
+    private val waitQueue = mutableSetOf<Event>()
+
+    private fun processWaitQueue() {
+        for (event in waitQueue) {
+            submit(event)
+        }
+    }
 
     @Unused
     fun setStreamConfig(streamConfig: StreamConfig) {
@@ -59,8 +76,11 @@ object EventPlatformClient {
     @Synchronized
     @Read("EventPlaformClient", "STREAM_CONFIGS")
     fun submit(event: Event) {
+        if (!isReady) {
+            waitQueue.add(event)
+            return
+        }
 
-        //NT queue the execution of method until Streamconfigs is ready
         if (!SamplingController.isInSample(event)) {
             return
         }
@@ -111,6 +131,7 @@ object EventPlatformClient {
         STREAM_CONFIGS.clear() //Reset
         STREAM_CONFIGS.putAll(Prefs.streamConfigs) //Write
         refreshStreamConfigs()
+        setReady()
     }
 
     /**
@@ -170,15 +191,15 @@ object EventPlatformClient {
          */
         @Read("EventPlatformClient", "STREAM_CONFIGS")
         private fun send() {
-            if (!Prefs.isEventLoggingEnabled) {
+            if (!Prefs.isEventLoggingEnabled || isReady) {
                 return
             }
+
             val eventsByStream = mutableMapOf<String, MutableList<Event>>()
             QUEUE.forEach {
                 eventsByStream.getOrPut(it.stream) { mutableListOf() }.add(it)
             }
             eventsByStream.keys.forEach {
-                //NT if not ready add a wait/semaphore
                 sendEventsForStream(STREAM_CONFIGS[it]!!, eventsByStream[it]!!)
             }
         }
