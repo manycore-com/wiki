@@ -34,11 +34,6 @@ object EventPlatformClient {
     @Volatile
     private var isReady = false
 
-    fun setReady() {
-        isReady = true
-        processWaitQueue()
-    }
-
     private val waitQueue = mutableSetOf<Event>()
 
     private fun processWaitQueue() {
@@ -131,7 +126,8 @@ object EventPlatformClient {
         STREAM_CONFIGS.clear() //Reset
         STREAM_CONFIGS.putAll(Prefs.streamConfigs) //Write
         refreshStreamConfigs()
-        setReady()
+        isReady = true
+        processWaitQueue()
     }
 
     /**
