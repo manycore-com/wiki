@@ -18,7 +18,6 @@ object EventPlatformClient {
     /**
      * Stream configs to be fetched on startup and stored for the duration of the app lifecycle.
      */
-    //TODO check
     private val STREAM_CONFIGS = mutableMapOf<String, StreamConfig>()
 
     /*
@@ -34,12 +33,6 @@ object EventPlatformClient {
     @Unused
     fun setStreamConfig(streamConfig: StreamConfig) {
         STREAM_CONFIGS[streamConfig.streamName] = streamConfig
-    }
-
-    @Read("EventPlatformClient","STREAM_CONFIG")
-    @Unused
-    private fun getStreamConfig(name: String): StreamConfig? {
-        return STREAM_CONFIGS[name]
     }
 
     /**
