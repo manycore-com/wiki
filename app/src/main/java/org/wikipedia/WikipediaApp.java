@@ -163,7 +163,12 @@ public class WikipediaApp extends Application {
         // For good measure, explicitly call our token subscription function, in case the
         // API failed in previous attempts.
         WikipediaFirebaseMessagingService.Companion.updateSubscription();
-        EventPlatformClient.INSTANCE.setUpStreamConfigs();
+        new Runnable() {
+            @Override
+            public void run() {
+                EventPlatformClient.INSTANCE.setUpStreamConfigs();
+            }
+        };
     }
 
     public int getVersionCode() {
